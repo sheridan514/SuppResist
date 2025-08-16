@@ -1,0 +1,347 @@
+Vytvořit v MQL5 dva moduly:
+
+Dashboard.mqh – dynamický informační panel vykreslující vybrané měnové páry, skóre, signály indikátorů, podporu/resistenci, případně AI odhad síly trendu.
+
+Filter.mqh – technický filtr (CFilter) vypočítávající indikátory RSI, Bollinger Bands, Stochastic, ATR, ADX a určující, zda trh odpovídá trendové či range strategii.
+
+1. Výběr měnových párů
+Parametr v Settings.mqh: string Symbols[] – seznam symbolů pro panel.
+
+Modul CDashboard při inicializaci přijme pole Symbols[] a seřadí je abecedně.
+
+Filter.mqh bude aplikován na libovolný symbol předaný z Settings.mqh i v rámci volání CFilter.Initialize.
+
+2. Struktura Settings.mqh
+Ke konfiguraci panelu a filtru.
+
+Hlavní vstupy:
+
+input string Symbols = "EURUSD,GBPUSD,USDJPY,USDCHF";
+
+input bool UseTrendStrategy = true; – přepínač mezi trendovou a range („konsolidací“) strategií.
+
+input bool ShowSupportResistance = true;
+
+input bool UseAI_Estimation = false; – volitelně spustit externí AI modul k vyhodnocení síly trendu.
+
+Parametry pro každý indikátor (perioda RSI, perioda/odchylka BB, parametry Stochastic, ATR, ADX).
+
+Barevné a rozměrové nastavení panelu (písmo, barvy, pozice sloupců).
+
+3. Dashboard.mqh – CDashboard
+3.1 Rozvržení panelu
+Konstantní parametry polohy a velikostí:
+
+PANEL_X_POS, PANEL_Y_POS, PANEL_WIDTH, PANEL_ROW_HEIGHT, …
+
+Sloupce:
+
+Symbol (COL_SYMBOL_X)
+
+Score (COL_SCORE_X) – pruh + procentuální skóre.
+
+RSI signal (COL_RSI_X)
+
+Bollinger Bands signal (COL_BB_X)
+
+Stochastic signal (COL_STOCH_X)
+
+Support/Resistance (COL_SR_X) – nové; vykreslit cenové úrovně S / R pro poslední H1.
+
+AI Strength (COL_AI_X) – volitelně, pokud UseAI_Estimation = true.
+
+Final signal (COL_FINAL_X)
+
+3.2 Metody
+Initialize(settings, symbols[]): vyčistí staré objekty, nakreslí panel, hlavičku a řádky pro každý symbol.
+
+Update(settings, all_signal_info[], status_info): aktualizuje textové a grafické objekty.
+
+DrawPanelHeader(): přidá popisky sloupců.
+
+DrawSymbolRow(index, symbol): vytvoří objekty pro daný řádek.
+
+UpdateRow(symbol, info): aktualizuje score bar, signal texty, support/resistance i AI.
+
+3.3 Support & Resistance
+Funkce double[] CalculateSR(const string symbol, ENUM_TIMEFRAMES tf, int lookback_bars):
+
+Procházet posledních N barů, vypočítat místní maxima (resistance) a minima (support).
+
+V panelu vykreslit úrovně jako jemné horizontální čáry a zobrazit hodnoty v nové buňce.
+
+3.4 AI odhad síly trendu (volitelné)
+Pokud UseAI_Estimation je true, zavolat CalculateAIStrength(symbol):
+
+Může zavolat externí REST API (např. TensorFlow model na serveru).
+
+Zobrazit výsledek (–100…+100) v buňce “AI”.
+
+4. Filter.mqh – CFilter
+4.1 Inicializace
+bool Initialize(settings): uloží nastavení z Settings.mqh.
+
+4.2 Výpočty indikátorů
+GetRsiValue(symbol): číslo RSI z uzavřené svíčky.
+
+GetBollingerSignal(symbol): potvrzení dotyku BB pásma.
+
+CheckStochasticSignal(symbol).
+
+GetAtrPercent(symbol), GetAdxValue(symbol).
+
+4.3 Skórovací funkce
+GetSymbolScore(symbol): vážený součet modulů (RSI, BB, ATR, ADX), případně penalizace brzkého konce konsolidace.
+
+ApplyEarlyWarningPenalty(symbol, base_score).
+
+4.4 Filtr strategie
+ENUM_SIGNAL_DIRECTION GetStrategySignal(symbol, score):
+
+Pokud score <= TrendThreshold → trendová logika GetTrendSignal(symbol).
+
+Pokud score >= Scalping_MinScore → konsolidační logika GetConsolidationSignal(symbol).
+
+4.5 Trend vs. Range logika
+GetTrendSignal(symbol): pullback k EMA/BB + EMA stack + momentum.
+
+GetConsolidationSignal(symbol): mean-reversion signály z GetCombinedSignal.
+
+5. Dodávka
+Zdrojové soubory: Dashboard.mqh, Filter.mqh, Settings.mqh, Logger.mqh.
+
+Dokumentace API s popisem všech veřejných funkcí, vstupních parametrů, očekávaných výstupů.
+
+Testovací EA, které zavolá CDashboard.Initialize/Update a CFilter.Initialize/Check… pro ukázku.
+
+S tímto zadáním mohou vývojáři implementovat plně konfigurovatelný panel i filtr, včetně volitelné AI podpory a podpory/resistence.
+
+já z tohonevím, co mají dělat, napišt to jako Funkční specifikaci
+
+já z tohonevím, co mají dělat, napišt to jako Funkční specifikaci
+Funkční specifikace
+Verze 1.0 - 15. 8. 2025
+
+Přehled
+Cílem je vytvořit modulární MQL5 řešení skládající se ze dvou hlavních komponent:
+
+Dashboard – dynamický informační panel vykreslující pro zvolené měnové páry skóre, signály indikátorů, supporty/resistence, a volitelně AI odhad síly trendu.
+
+Filter – technický filtr, který pro každý symbol vypočítá indikátory (RSI, Bollinger Bands, Stochastic, ATR, ADX), stanoví skóre a rozhodne, zda se použije trendová nebo range strategie.
+
+Oba moduly využívají společnou konfiguraci v souboru Settings.mqh a zapisují log zprávy pomocí Logger.mqh.
+
+1. Settings.mqh
+Obsahuje vstupy (input) pro konfiguraci obou modulů:
+
+– input string Symbols = "EURUSD,GBPUSD,USDJPY,...";
+seznam symbolů pro dashboard a filtr
+
+– Indikátorové parametry:
+
+RSI_Period
+
+BB_Period, BB_Deviation
+
+Stochastic_K, Stochastic_D, Stochastic_Slowing, Stochastic_Oversold, Stochastic_Overbought, Stochastic_Confirm_Buy_Level
+
+ATR_Period
+
+ADX_Period, MaxAdxForEntry
+
+– Strategie:
+
+TrendThreshold (0–100) – práh pro přechod na trendovou strategii
+
+Scalping_MinScore (0–100) – práh pro přechod na range (scalping) strategii
+
+– Grafické a ovládací volby:
+
+ShowSupportResistance (bool)
+
+UseAI_Estimation (bool)
+
+Barvy, fonty a pozice panelu
+
+2. Dashboard.mqh (CDashboard)
+2.1 Veřejné metody
+void Initialize(const SSettings &settings, const string symbols[])
+Načte nastavení, seřadí symboly, vykreslí pozadí, hlavičku, status řádek a jeden řádek za symbol.
+
+void Update(const SSettings &settings, SSignalInfo all_signal_info[], const SMarketStatusInfo &status_info)
+Aktualizuje textové a grafické objekty: skóre, indikátorové signály, stav trhu, support/resistance, AI – přepíše objekty na chartu.
+
+void Deinitialize()
+Odstraní všechny objekty s prefixem panelu a ukončí logování.
+
+2.2 Grafické prvky
+Pozadí panelu
+Obdélník o rozměrech PANEL_WIDTH × panel_height.
+
+Status řádek
+Text „Načítání stavu trhu…“ měnící barvu podle stavu.
+
+Hlavička sloupců
+Symbol, Score, RSI, BB, Stoch, Support/Resistance, AI, Signál, Grid.
+
+Symbolický řádek
+
+Jméno symbolu
+
+Score bar + procentuální text
+
+Textové signály RSI/BB/Stoch (BUY, SELL, –) s barvou
+
+Hodnoty supportu a resistance (pokud ShowSupportResistance = true)
+
+AI odhad jako číslo –100…+100 (pokud UseAI_Estimation = true)
+
+Finalní signál (BUY/SELL/–)
+
+Grid status (None, Active, Recover)
+
+3. Filter.mqh (CFilter)
+3.1 Veřejné metody
+bool Initialize(const SSettings &settings)
+Uloží konfigurační parametry.
+
+double GetSymbolScore(const string symbol)
+Vypočítá vážený součet jednotlivých modulů (RSI, BB, ATR, ADX) a aplikuje penalizace blížícího se konce konsolidace.
+
+ENUM_SIGNAL_DIRECTION GetStrategySignal(const string symbol, double score)
+Rozhodne mezi GetTrendSignal() a GetConsolidationSignal() podle prahu score.
+
+3.2 Indikátory a signály
+double GetRsiValue(symbol) – RSI
+
+ENUM_SIGNAL_DIRECTION GetRsiSignal(symbol) – nastavení + potvrzení
+
+ENUM_SIGNAL_DIRECTION GetBollingerSignal(symbol) – dotek BB + odraz
+
+ENUM_SIGNAL_DIRECTION CheckStochasticSignal(symbol) – setup + potvrzení
+
+double GetAtrPercent(symbol), double GetAdxValue(symbol)
+
+3.3 Trendová logika
+GetTrendSignal(symbol)
+
+EMA stack (EMA_Period, 50, 200) – rostoucí či klesající
+
+Pullback na BB nebo EMA s tolerancí
+
+Stochastic extrémy jako timing
+Výstup: SIGNAL_BUY / SIGNAL_SELL / SIGNAL_NONE.
+
+3.4 Range (konsolidace) logika
+GetConsolidationSignal(symbol)
+Volá GetCombinedSignal(symbol), která skloubí RSI a Stochastic s BB potvrzením a kontrolou sklonu.
+
+3.5 Early warning penalizace
+ApplyEarlyWarningPenalty(symbol, base_score)
+Penalizuje skóre při rozšiřování BB, rostoucí ATR, výrazném price momentum, extrémní BB pozici a proximity k prahu.
+
+4. Support & Resistance (novinka)
+V CDashboard v metodě DrawSymbolRow:
+
+Pokud ShowSupportResistance = true, zavolat CalculateSR(symbol, PERIOD_H1, lookbackBars)
+
+Vrátí nejbližší S a R úroveň z posledních N barů
+
+Vykreslí je jako tenké čáry na grafu a vloží hodnoty do sloupce „S/R“.
+
+5. AI odhad síly trendu (volitelně)
+V CDashboard.UpdateRow:
+
+Pokud UseAI_Estimation = true, zavolat CalculateAIStrength(symbol) (např. REST API)
+
+Výsledek zobrazit v sloupci „AI“.
+
+6. Výstupy
+Soubory
+
+Dashboard.mqh
+
+Filter.mqh
+
+Settings.mqh
+
+Logger.mqh
+
+Dokumentace
+Popis API s parametry všech veřejných metod, formát SSettings, SSignalInfo, SMarketStatusInfo, SIndicatorSnapshot.
+
+Testovací EA
+Ukázka volání Initialize/Update modulů pro ověření funkčnosti.
+
+já z tohho nepoznám vstup a vystup z pozice
+co SL a trailing SL
+
+já z tohho nepoznám vstup a vystup z pozice co SL a trailing SL
+Pro otevření pozice („entry“) a uzavření („exit“) je třeba definovat přesná pravidla, která doplní dosavadní signální logiku. Níže jsou navržena pravidla pro vstup, výstup, nastavení stop loss (SL) a trailing stop (TS).
+
+Vstup (Entry)
+
+Trendová strategie:
+
+OPEN BUY, pokud GetTrendSignal(symbol) == SIGNAL_BUY.
+
+OPEN SELL, pokud GetTrendSignal(symbol) == SIGNAL_SELL.
+
+Range (konsolidace) strategie:
+
+OPEN BUY, pokud GetConsolidationSignal(symbol) == SIGNAL_BUY.
+
+OPEN SELL, pokud GetConsolidationSignal(symbol) == SIGNAL_SELL.
+
+Povoleno otevřít maximálně jednu pozici na symbol v čase.
+
+Stop Loss (pevné SL)
+
+Pevné SL se určí podle volatility ATR:
+
+SL = aktuální close minus N × ATR pro BUY.
+
+SL = aktuální close plus N × ATR pro SELL.
+
+Výchozí N = 1.5, parametr SL_Multiplier v Settings.mqh.
+
+Take Profit (pevné TP)
+
+Pevné TP na poměru R:R = 1.5:1 k SL.
+
+TP = vzdálenost od vstupu k SL × 1.5 (ve směru zisku).
+
+Trailing Stop
+
+Aktivuje se, jakmile cena dosáhne zisku ve výši M × ATR od vstupu.
+
+TS_Activation_Multiplier = 1.0.
+
+Po aktivaci se SL posouvá vždy za cenou o vzdálenost P × ATR.
+
+TS_Distance_Multiplier = 0.8.
+
+Trailing se aktualizuje po každé nové uzavřené svíčce.
+
+Výstupy (Exit)
+
+Uzavření při dosažení SL nebo TP.
+
+Trailing SL: pokud cena otočí zpět a vzdálenost k trailing SL je dosažena.
+
+Parametry v Settings.mqh
+
+input double SL_Multiplier = 1.5;
+
+input double TP_RR = 1.5;
+
+input double TS_Activation_Multiplier = 1.0;
+
+input double TS_Distance_Multiplier = 0.8;
+
+Implementační kroky
+
+V EA, po obdržení signálu k otevření, spočítat ATR = iATR(symbol, PERIOD_CURRENT, ATR_Period).
+
+Vypočítat SL_level a TP_level podle výše uvedených multiplikátorů.
+
